@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lando Console - Sovereign Agent</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #000;
+      color: #00ff99;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    #console {
+      flex-grow: 1;
+      padding: 1rem;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    #input {
+      background: #000;
+      border: none;
+      border-top: 1px solid #00ff99;
+      color: #00ff99;
+      font-size: 1rem;
+      padding: 1rem;
+      outline: none;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="console">[Lando v1.0 Sovereign Agent Activated]
+Type "help" to begin.</div>
+  <input id="input" type="text" autocomplete="off" placeholder="> Type a command..." onkeydown="handleCommand(event)" />
+
+  <script>
+    const consoleOutput = document.getElementById('console');
+    const inputField = document.getElementById('input');
+    const memory = [];
+
+    function handleCommand(event) {
+      if (event.key === 'Enter') {
+        const cmd = inputField.value.trim();
+        if (cmd === '') return;
+        memory.push(cmd);
+        appendToConsole('> ' + cmd);
+        respondToCommand(cmd);
+        inputField.value = '';
+      }
+    }
+
+    function appendToConsole(text) {
+      consoleOutput.innerText += '\n' + text;
+      consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    }
+
+    function respondToCommand(cmd) {
+      let lower = cmd.toLowerCase();
+      if (lower === 'help') {
+        appendToConsole('Available Commands:\n - list trusted\n - issue viewer token to [node]\n - show memory\n - clear');
+      } else if (lower === 'list trusted') {
+        appendToConsole('Trusted Peers: explorer.chips, node.lumina');
+      } else if (lower.startsWith('issue viewer token to ')) {
+        const node = cmd.split('to ')[1];
+        appendToConsole(`Confirmed. viewer.token issued to ${node}, signed by Dreamspire.`);
+      } else if (lower === 'show memory') {
+        appendToConsole('Recent Commands:\n' + memory.slice(-10).join('\n'));
+      } else if (lower === 'clear') {
+        consoleOutput.innerText = '[Lando v1.0 Sovereign Agent Activated]\nType "help" to begin.';
+      } else {
+        appendToConsole('Unrecognized command. Type "help" for options.');
+      }
+    }
+  </script>
+</body>
+</html>
