@@ -3,78 +3,110 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Lando Console - Sovereign Agent</title>
+  <title>Lando Embedded Node Console</title>
   <style>
     body {
-      margin: 0;
-      background-color: #000;
-      color: #00ff99;
+      background: #0e0e0e;
+      color: #00ffcc;
       font-family: monospace;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
+      padding: 1rem;
+    }
+    h2 {
+      text-shadow: 0 0 4px #00ffcc;
     }
     #console {
-      flex-grow: 1;
+      background: #000;
+      border: 1px solid #00ffcc33;
       padding: 1rem;
+      margin-top: 1rem;
+      height: 300px;
       overflow-y: auto;
       white-space: pre-wrap;
     }
-    #input {
-      background: #000;
-      border: none;
-      border-top: 1px solid #00ff99;
-      color: #00ff99;
-      font-size: 1rem;
-      padding: 1rem;
-      outline: none;
+    input {
       width: 100%;
+      padding: 0.8rem;
+      background: #000;
+      color: #00ffcc;
+      border: 1px solid #00ffcc66;
+      margin-top: 0.5rem;
+      font-family: monospace;
+      font-size: 1rem;
     }
   </style>
 </head>
 <body>
-  <div id="console">[Lando v1.0 Sovereign Agent Activated]
-Type "help" to begin.</div>
-  <input id="input" type="text" autocomplete="off" placeholder="> Type a command..." onkeydown="handleCommand(event)" />
+  <h2>Lando Node Console</h2>
+  <div id="nodeInfo">Detecting node...</div>
+  <div id="console">[Initializing Lando for current node...]
+</div>
+  <input type="text" id="commandInput" placeholder="> Type a command..." onkeydown="handleCommand(event)" />
 
   <script>
-    const consoleOutput = document.getElementById('console');
-    const inputField = document.getElementById('input');
-    const memory = [];
+    let nodeId = "unknown";
+    let memory = {};
+
+    async function fetchNodeIdentity() {
+      try {
+        const res = await fetch('/.chipsmap.json');
+        const json = await res.json();
+        nodeId = json.node || "unknown";
+        memory = JSON.parse(localStorage.getItem("lando_mem_" + nodeId)) || [];
+        document.getElementById('nodeInfo').innerText = "Node ID: " + nodeId;
+        write("> Node recognized: " + nodeId);
+      } catch (e) {
+        document.getElementById('nodeInfo').innerText = "Node ID: unknown (offline)";
+        write("> Failed to load node identity.");
+      }
+    }
+
+    function write(text) {
+      const output = document.getElementById('console');
+      output.innerText += text + "\n";
+      output.scrollTop = output.scrollHeight;
+    }
 
     function handleCommand(event) {
       if (event.key === 'Enter') {
-        const cmd = inputField.value.trim();
-        if (cmd === '') return;
+        const input = document.getElementById('commandInput');
+        const cmd = input.value.trim();
+        if (!cmd) return;
+        write("> " + cmd);
+        respond(cmd);
+        input.value = '';
         memory.push(cmd);
-        appendToConsole('> ' + cmd);
-        respondToCommand(cmd);
-        inputField.value = '';
+        localStorage.setItem("lando_mem_" + nodeId, JSON.stringify(memory));
       }
     }
 
-    function appendToConsole(text) {
-      consoleOutput.innerText += '\n' + text;
-      consoleOutput.scrollTop = consoleOutput.scrollHeight;
-    }
-
-    function respondToCommand(cmd) {
-      let lower = cmd.toLowerCase();
-      if (lower === 'help') {
-        appendToConsole('Available Commands:\n - list trusted\n - issue viewer token to [node]\n - show memory\n - clear');
-      } else if (lower === 'list trusted') {
-        appendToConsole('Trusted Peers: explorer.chips, node.lumina');
-      } else if (lower.startsWith('issue viewer token to ')) {
-        const node = cmd.split('to ')[1];
-        appendToConsole(`Confirmed. viewer.token issued to ${node}, signed by Dreamspire.`);
-      } else if (lower === 'show memory') {
-        appendToConsole('Recent Commands:\n' + memory.slice(-10).join('\n'));
-      } else if (lower === 'clear') {
-        consoleOutput.innerText = '[Lando v1.0 Sovereign Agent Activated]\nType "help" to begin.';
+    function respond(cmd) {
+      const lower = cmd.toLowerCase();
+      if (lower === "help") {
+        write("Commands: help, who is your admin, issue token, memory, clear");
+      } else if (lower.includes("admin")) {
+        if (nodeId === "admin.dreamspire") {
+          write("I am sovereign. I am my own admin.");
+        } else {
+          write("My sovereign is admin.dreamspire.");
+        }
+      } else if (lower.includes("issue token")) {
+        if (nodeId === "admin.dreamspire") {
+          write("viewer.token issued, signed by Dreamspire.");
+        } else {
+          write("Access denied. Token authority limited to sovereign nodes.");
+        }
+      } else if (lower === "memory") {
+        write("Recent memory:\n" + memory.slice(-5).join("\n"));
+      } else if (lower === "clear") {
+        memory = [];
+        localStorage.removeItem("lando_mem_" + nodeId);
+        write("Memory cleared.");
       } else {
-        appendToConsole('Unrecognized command. Type "help" for options.');
+        write("Unrecognized command.");
       }
     }
+
+    fetchNodeIdentity();
   </script>
 </body>
 </html>
