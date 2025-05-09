@@ -1,110 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>CHIPS Explorer with Trust Map</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CHIPS:// Watchdog Console</title>
   <style>
-    body {
-      font-family: monospace;
-      background: #0e0e0e;
-      color: #00ffe0;
-      margin: 0;
-      padding: 1rem 250px 1rem 1rem;
-    }
-    h1 { text-align: center; }
-    table { width: 100%; background: #111; border-collapse: collapse; margin-top: 2rem; }
-    th, td { padding: 0.5rem; border-bottom: 1px solid #00ffe011; text-align: left; }
-    th { background: #111; }
-    tr:hover { background: #222; }
-    a { color: #00ffd0; text-decoration: none; }
-    .sidebar {
-      position: fixed;
-      top: 0;
-      right: 0;
-      width: 240px;
-      height: 100%;
-      background: #111;
-      border-left: 1px solid #00ffe033;
-      padding: 1rem;
-      overflow-y: auto;
-    }
-    .node {
-      margin-bottom: 1rem;
-      padding-bottom: 0.5rem;
-      border-bottom: 1px solid #00ffe011;
-    }
-    .trusted { color: #00ffcc; }
-    .suggested { color: #ffaa00; }
+    body { font-family: monospace; background: #0e0e0e; color: #00ffcc; margin: 0; padding: 1rem; }
+    h1 { text-align: center; color: #00ffe0; }
+    .log { background: #000; border: 1px solid #00ffe033; padding: 1rem; height: 80vh; overflow-y: auto; white-space: pre-wrap; }
   </style>
 </head>
 <body>
-  <h1>CHIPS:// Node Explorer</h1>
-  <table>
-    <thead>
-      <tr>
-        <th>Node</th><th>Status</th><th>Role</th><th>Protection</th><th>Link</th>
-      </tr>
-    </thead>
-    <tbody id="nodeTable">
-      <tr>
-        <td>admin.dreamspire</td><td>Online</td><td>Sovereign.Admin</td><td>Password</td>
-        <td><a href="https://dreamspire-admin1-fn1l.vercel.app" target="_blank">Visit</a></td>
-      </tr>
-      <tr>
-        <td>explorer.chips</td><td>Online</td><td>Public.Registry</td><td>None</td>
-        <td><a href="#" target="_blank">Visit</a></td>
-      </tr>
-      <tr>
-        <td>node.lumina</td><td>Online</td><td>Explorer.Agent</td><td>Token</td>
-        <td><a href="#" target="_blank">Visit</a></td>
-      </tr>
-    </tbody>
-  </table>
-
-  <div class="sidebar" id="trustMap">
-    <h3>Trust Map</h3>
-    <div id="trustList">Loading trust data...</div>
-  </div>
+  <h1>CHIPS:// Sovereign Watchdog Console</h1>
+  <div class="log" id="log">[Watchdog Initialized] Scanning nodes...
+</div>
 
   <script>
-    const trustData = {
+    const nodes = {
       "admin.dreamspire": {
-        trustedPeers: ["explorer.chips", "node.lumina"]
+        url: "https://dreamspire-admin1-fn1l.vercel.app",
+        trustedPeers: ["explorer.chips", "node.lumina"],
+        token: { granted: "viewer.token", expires: "2025-05-15T00:00:00Z" }
       },
       "explorer.chips": {
-        trustedPeers: ["node.lumina"]
+        url: "https://explorer.chips",
+        trustedPeers: ["node.lumina"],
+        token: { granted: "registry.viewer", expires: "2025-05-10T00:00:00Z" }
       },
       "node.lumina": {
-        trustedPeers: []
+        url: "https://node.lumina",
+        trustedPeers: [],
+        token: { granted: "viewer.token", expires: "2025-04-30T00:00:00Z" }
       }
     };
 
-    function renderTrustMap() {
-      const trustList = document.getElementById("trustList");
-      trustList.innerHTML = "";
+    const logDiv = document.getElementById('log');
 
-      const nodes = Object.keys(trustData);
-      nodes.forEach(node => {
-        const div = document.createElement("div");
-        div.className = "node";
-        const peers = trustData[node].trustedPeers || [];
-        div.innerHTML = `<strong>${node}</strong><br/>Trusts: `;
+    function log(msg) {
+      logDiv.textContent += "[Watchdog] " + msg + "\n";
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
 
-        if (peers.length === 0) {
-          div.innerHTML += "<em>None</em>";
-        } else {
-          div.innerHTML += peers.map(p => {
-            const reciprocal = trustData[p]?.trustedPeers?.includes(node);
-            return `<span class="${reciprocal ? 'trusted' : 'suggested'}">${p}</span>`;
-          }).join(", ");
-        }
+    function checkNodeStatus(nodeId, nodeData) {
+      fetch(nodeData.url + '/.chipsmap.json')
+        .then(res => {
+          if (!res.ok) throw new Error("Offline or missing");
+          log(nodeId + " online");
+          return res.json();
+        })
+        .catch(() => {
+          log(nodeId + " offline or unreachable");
+        });
+    }
 
-        trustList.appendChild(div);
+    function checkTokenStatus(nodeId, token) {
+      const now = new Date();
+      const expiry = new Date(token.expires);
+      if (expiry < now) {
+        log(nodeId + " token expired — suggest renewal");
+      } else {
+        log(nodeId + " token valid until " + expiry.toISOString());
+      }
+    }
+
+    function checkTrustLoops() {
+      Object.keys(nodes).forEach(sourceId => {
+        nodes[sourceId].trustedPeers.forEach(peerId => {
+          if (!nodes[peerId]?.trustedPeers?.includes(sourceId)) {
+            log("Trust loop broken: " + sourceId + " → " + peerId + " (not reciprocated)");
+          }
+        });
       });
     }
 
-    window.onload = renderTrustMap;
+    function runWatchdog() {
+      Object.entries(nodes).forEach(([id, data]) => {
+        checkNodeStatus(id, data);
+        checkTokenStatus(id, data.token);
+      });
+      checkTrustLoops();
+    }
+
+    runWatchdog();
   </script>
 </body>
 </html>
