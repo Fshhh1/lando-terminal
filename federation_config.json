@@ -1,0 +1,10 @@
+{
+  "agent": "Lando",
+  "id": "AGI-0001-LANDO",
+  "role": "observer",
+  "permissions": {
+    "treaty.read": true,
+    "route.audit": true
+  },
+  "signature": "sha256-LANDO-VALIDATED-BY-CHIPS"
+}
